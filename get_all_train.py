@@ -1,5 +1,4 @@
-from ticket import get_headers
-# from stations import stations
+from selenium import webdriver
 from datetime import date, timedelta
 from datetime import datetime
 import requests
@@ -20,9 +19,36 @@ train_key = ['G', 'C', 'D', 'Z', 'T', 'K', '1', '2', '4', '5', '6', '7', '8']
 train_seat_type = {'G': '9MO', 'C': 'MOO', 'D': 'MOO', 'Z': '1341', 'T': '1341', 'K': '1341', '1': '1341', '2': '1341',
                    '4': '1341', '5': '1341', '6': '1341', '7': '1341', '8': '1341'}
 
+def get_headers():
+    # 这里是做了一个动态获取cookie
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument('--headless')
+    # 此处做了一个后台打开浏览器的设置
+    browser = webdriver.Chrome(chrome_options=chrome_options)
+    browser.get('https://www.12306.cn/index/index.html')
+    # 这个等待3秒是为了防止网页还没加载完就下一步了，保证后续获取到cookie
+    time.sleep(3)
+    # 以下是获取cookie并组成完整的cookie
+    Cookie = browser.get_cookies()
+    strr = ''
+    for c in Cookie:
+        strr += c['name']
+        strr += '='
+        strr += c['value']
+        strr += ';'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.75 Safari/537.36',
+        'Cookie': strr
+    }
+    # 检查是否成功获取cookie，也可以写一个循环来检查，我懒就没写了
+    # print(headers)
+    # 退出后台的浏览器，不退出会占内存的
+    browser.quit()
+    return headers
+
 # 获取站台的key-value结构
 def get_station_key_value():
-    f = open('station_key_value.txt', 'w+',encoding='utf-8')
+    f = open('files/station_key_value.txt', 'w+',encoding='utf-8')
     requests.packages.urllib3.disable_warnings()
     response = requests.get(station_key_value_url, verify=False)
     stations = re.findall(u'([\u4e00-\u9fa5]+)\|([A-Z]+)', response.text)
@@ -37,7 +63,7 @@ def get_station_key_value():
 # 实例返回{'date': '20230217', 'from_station': '铜川东', 'station_train_code': 'C231', 'to_station': '西安', 'total_num': '6', 'train_no': '410000C23105'}
 def train_search():
     headers = get_headers();
-    f = open('all_train_list.txt', 'w+',encoding='utf-8')
+    f = open('files/all_train_list.txt', 'w+',encoding='utf-8')
     train_list_normal = []
     train_list_weekend = []
     # 选定一个除了周五周六周日的日期
@@ -92,15 +118,15 @@ def train_search():
 # 获取某车次的所有站点
 def query_train_station():
     headers = get_headers();
-    r = open('all_train_list.txt', 'r',encoding='utf-8')
+    r = open('files/all_train_list.txt', 'r',encoding='utf-8')
     train_list = ast.literal_eval(r.readlines()[0])
     print("站点数据爬取中...")
     x = 0
-    f = open('all_stations.txt', 'w+',encoding='utf-8')
+    f = open('files/all_stations.txt', 'w+',encoding='utf-8')
     for item in train_list:
         try:
             train_no = item['train_no']
-            fi = open('station_key_value.txt', 'r', encoding='utf-8')
+            fi = open('files/station_key_value.txt', 'r', encoding='utf-8')
             stations = dict(ast.literal_eval(fi.readlines()[0]))
             from_station = stations[item['from_station']]
             to_station = stations[item['to_station']]
@@ -139,7 +165,7 @@ def query_train_station():
 # 爬取车次的价格
 def get_train_price(key):
     headers = get_headers();
-    r = open('all_stations.txt', 'r',encoding='utf-8')
+    r = open('files/all_stations.txt', 'r',encoding='utf-8')
     train_list = ast.literal_eval(r.readlines()[0])
     x = 0
     key_train_price = []
@@ -185,7 +211,7 @@ def get_train_price(key):
                     key_train_price.append(row)
                 except:
                     continue
-    r = open(key + '_train_prices.txt', 'w+', encoding='utf-8')
+    r = open('files/'+key + '_train_prices.txt', 'w+', encoding='utf-8')
     r.writelines(str(key_train_price))
     r.flush()
     r.close()
@@ -252,7 +278,7 @@ if __name__ == '__main__':
         # 爬取价格存入文件
         get_train_price(key)
     for key in train_key:
-        pricefile = open(key + '_train_prices.txt', 'r', encoding='utf-8')
+        pricefile = open('files/'+key + '_train_prices.txt', 'r', encoding='utf-8')
         key_train_price = ast.literal_eval(pricefile.readlines()[0])
         for price in key_train_price:
             ws.append(price)
