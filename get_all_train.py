@@ -9,7 +9,7 @@ import ast
 import random
 from openpyxl import Workbook
 
-station_key_value_url= "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js?station_version=1.9161"
+station_key_value_url = "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js?station_version=1.9161"
 train_search_url = "https://search.12306.cn/search/v1/train/search?keyword={}&date={}"
 query_by_train_no = "https://kyfw.12306.cn/otn/czxx/queryByTrainNo?train_no={}&from_station_telecode={}&to_station_telecode={}&depart_date={}"
 query_ticket_price = "https://kyfw.12306.cn/otn/leftTicket/queryTicketPrice?train_no={}&from_station_no={}&to_station_no={}&seat_types={}&train_date={}"
@@ -18,6 +18,7 @@ train_key = ['G', 'C', 'D', 'Z', 'T', 'K', '1', '2', '4', '5', '6', '7', '8']
 # 座位关键词
 train_seat_type = {'G': '9MO', 'C': 'MOO', 'D': 'MOO', 'Z': '1341', 'T': '1341', 'K': '1341', '1': '1341', '2': '1341',
                    '4': '1341', '5': '1341', '6': '1341', '7': '1341', '8': '1341'}
+
 
 def get_headers():
     # 这里是做了一个动态获取cookie
@@ -46,9 +47,10 @@ def get_headers():
     browser.quit()
     return headers
 
+
 # 获取站台的key-value结构
 def get_station_key_value():
-    f = open('files/station_key_value.txt', 'w+',encoding='utf-8')
+    f = open('files/station_key_value.txt', 'w+', encoding='utf-8')
     requests.packages.urllib3.disable_warnings()
     response = requests.get(station_key_value_url, verify=False)
     stations = re.findall(u'([\u4e00-\u9fa5]+)\|([A-Z]+)', response.text)
@@ -63,7 +65,7 @@ def get_station_key_value():
 # 实例返回{'date': '20230217', 'from_station': '铜川东', 'station_train_code': 'C231', 'to_station': '西安', 'total_num': '6', 'train_no': '410000C23105'}
 def train_search():
     headers = get_headers();
-    f = open('files/all_train_list.txt', 'w+',encoding='utf-8')
+    f = open('files/all_train_list.txt', 'w+', encoding='utf-8')
     train_list_normal = []
     train_list_weekend = []
     # 选定一个除了周五周六周日的日期
@@ -118,11 +120,11 @@ def train_search():
 # 获取某车次的所有站点
 def query_train_station():
     headers = get_headers();
-    r = open('files/all_train_list.txt', 'r',encoding='utf-8')
+    r = open('files/all_train_list.txt', 'r', encoding='utf-8')
     train_list = ast.literal_eval(r.readlines()[0])
     print("站点数据爬取中...")
     x = 0
-    f = open('files/all_stations.txt', 'w+',encoding='utf-8')
+    f = open('files/all_stations.txt', 'w+', encoding='utf-8')
     for item in train_list:
         try:
             train_no = item['train_no']
@@ -165,57 +167,64 @@ def query_train_station():
 # 爬取车次的价格
 def get_train_price(key):
     headers = get_headers();
-    r = open('files/all_stations.txt', 'r',encoding='utf-8')
+    r = open('files/all_stations.txt', 'r', encoding='utf-8')
     train_list = ast.literal_eval(r.readlines()[0])
     x = 0
     key_train_price = []
     for item in train_list:
         if (key != re.search(r'(.?).*', item['station_train_code']).group(1)):
             continue
-        train_no = item['train_no']
-        total_num = len(item['train_station_list'])
-        date = datetime.strptime(item['date'], '%Y%m%d').strftime("%Y-%m-%d")
-        for i in range(0, total_num):
-            for j in range(i + 1, total_num):
-                try:
-                    from_station_no = item['train_station_list'][i]['station_no']
-                    to_station_no = item['train_station_list'][j]['station_no']
-                    x = x + 1
-                    if (x / 1000 == 1.0):
-                        x = 0
-                        headers = get_headers();
-                        time.sleep(60)
-                    try:
-                        price_dict = get_price_http(date, from_station_no, headers, to_station_no, train_no,
-                                                    train_seat_type[key])
-                    except:
-                        headers = deal_fanzhi()
-                        price_dict = get_price_http(date, from_station_no, headers, to_station_no, train_no,
-                                                    train_seat_type[key])
-                    # D字头的列车会存在差异化的座位类型导致爬取的数据异常
-                    if (key == 'D'):
-                        try:
-                            price_dict2 = get_price_http(date, from_station_no, headers, to_station_no, train_no, "IJO")
-                        except:
-                            headers = deal_fanzhi()
-                            price_dict2 = get_price_http(date, from_station_no, headers, to_station_no, train_no, "IJO")
-                        deal_special_price_list(price_dict, price_dict2)
-                    price_list = transfer_price_list(price_dict)
-                    row = [item['station_train_code'], item['from_station'], item['to_station'],
-                           item['train_station_list'][i]['station_name'],
-                           item['train_station_list'][j]['station_name'], price_list[0], price_list[1],
-                           price_list[2],
-                           price_list[3], price_list[4], price_list[-4], price_list[-3], price_list[-2],
-                           price_list[-1]]
-                    print(row)
-                    key_train_price.append(row)
-                except:
-                    continue
-    r = open('files/'+key + '_train_prices.txt', 'w+', encoding='utf-8')
+        try:
+            get_train_all_prices(headers, item, key, key_train_price, x)
+        except:
+            print("异常车次数据"+item['train_no'])
+    r = open('files/' + key + '_train_prices.txt', 'w+', encoding='utf-8')
     r.writelines(str(key_train_price))
     r.flush()
     r.close()
     return
+
+# 获取该车子的所有站台组合的价格
+def get_train_all_prices(headers, item, key, key_train_price, x):
+    train_no = item['train_no']
+    total_num = len(item['train_station_list'])
+    date = datetime.strptime(item['date'], '%Y%m%d').strftime("%Y-%m-%d")
+    for i in range(0, total_num):
+        for j in range(i + 1, total_num):
+            try:
+                from_station_no = item['train_station_list'][i]['station_no']
+                to_station_no = item['train_station_list'][j]['station_no']
+                x = x + 1
+                if (x / 1000 == 1.0):
+                    x = 0
+                    headers = get_headers();
+                    time.sleep(60)
+                try:
+                    price_dict = get_price_http(date, from_station_no, headers, to_station_no, train_no,
+                                                train_seat_type[key])
+                except:
+                    headers = deal_fanzhi()
+                    price_dict = get_price_http(date, from_station_no, headers, to_station_no, train_no,
+                                                train_seat_type[key])
+                # D字头的列车会存在差异化的座位类型导致爬取的数据异常
+                if (key == 'D'):
+                    try:
+                        price_dict2 = get_price_http(date, from_station_no, headers, to_station_no, train_no, "IJO")
+                    except:
+                        headers = deal_fanzhi()
+                        price_dict2 = get_price_http(date, from_station_no, headers, to_station_no, train_no, "IJO")
+                    deal_special_price_list(price_dict, price_dict2)
+                price_list = transfer_price_list(price_dict)
+                row = [item['station_train_code'], item['from_station'], item['to_station'],
+                       item['train_station_list'][i]['station_name'],
+                       item['train_station_list'][j]['station_name'], price_list[0], price_list[1],
+                       price_list[2],
+                       price_list[3], price_list[4], price_list[-4], price_list[-3], price_list[-2],
+                       price_list[-1]]
+                print(row)
+                key_train_price.append(row)
+            except:
+                continue
 
 
 def deal_special_price_list(price_dict, price_dict2):
@@ -278,7 +287,7 @@ if __name__ == '__main__':
         # 爬取价格存入文件
         get_train_price(key)
     for key in train_key:
-        pricefile = open('files/'+key + '_train_prices.txt', 'r', encoding='utf-8')
+        pricefile = open('files/' + key + '_train_prices.txt', 'r', encoding='utf-8')
         key_train_price = ast.literal_eval(pricefile.readlines()[0])
         for price in key_train_price:
             ws.append(price)
